@@ -7,6 +7,7 @@ import { Ledger } from "../ledger/ledger.js";
 import { DEFAULT_PARAMS, type MonetaryParams, bootstrap, grant } from "../ledger/config.js";
 import { Registry } from "../registry/registry.js";
 import { parseManifest, type Manifest } from "../domain/manifest.js";
+import { industryIntelligenceAnalystManifest } from "./intelligence-analyst.js";
 
 export interface SeededWorld {
   ledger: Ledger;
@@ -62,6 +63,14 @@ export function seedWorld(params: MonetaryParams = DEFAULT_PARAMS): SeededWorld 
 
   const registry = new Registry();
   registry.upsertManifest(intelSecretaryManifest());
+
+  // 行业情报分析师：manifest 本身为 candidate（未过 gate2）；
+  // 在 seed 演示层将其以 active 上架，使其出现在店面列表中。
+  const analyst = industryIntelligenceAnalystManifest();
+  registry.upsertManifest({
+    ...analyst,
+    lifecycle: { ...analyst.lifecycle, status: "active" },
+  });
 
   return { ledger, registry, params, hirer: "consumer_demo" };
 }

@@ -19,8 +19,8 @@ function html(world: SeededWorld): string {
          <td><button onclick="hire('${e.id}')">雇佣</button></td></tr>`,
     )
     .join("");
-  return `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>Staff Store</title>
-<style>body{font-family:system-ui;max-width:820px;margin:2rem auto}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ddd;padding:.5rem;text-align:left}#out{white-space:pre-wrap;background:#f6f6f6;padding:1rem;margin-top:1rem;border-radius:8px}</style>
+  return `<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Staff Store</title>
+<style>body{font-family:system-ui;max-width:820px;margin:0 auto;padding:1rem;line-height:1.5}h1{font-size:1.4rem}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ddd;padding:.6rem .4rem;text-align:left;font-size:.95rem}small{color:#666}button{padding:.55rem 1rem;font-size:1rem;border:0;background:#0a7a5a;color:#fff;border-radius:6px}#out{white-space:pre-wrap;background:#f6f6f6;padding:1rem;margin-top:1rem;border-radius:8px}</style>
 </head><body>
 <h1>Staff Store · 数字员工</h1>
 <table><thead><tr><th>员工</th><th>岗位</th><th>质量</th><th>性价比</th><th>雇佣次数</th><th></th></tr></thead><tbody>${rows}</tbody></table>
