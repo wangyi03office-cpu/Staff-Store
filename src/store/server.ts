@@ -11,6 +11,8 @@ import type { LLMClient } from "../runtime/llm.js";
 import { listStore } from "./store.js";
 import { hireEmployee } from "../economy/hire.js";
 import { GeminiLLM } from "../llm/gemini.js";
+import { GroqLLM } from "../llm/groq.js";
+import { duckDuckGoSearch } from "../llm/websearch.js";
 
 function html(world: SeededWorld): string {
   const manifests = world.registry.listManifests((m) => m.lifecycle.status === "active");
@@ -190,51 +192,75 @@ export function createServer(world: SeededWorld, llm: LLMClient): Server {
         const sys =
           (analyst?.execution.spec["system_prompt"] as string | undefined) ??
           "你是一位专业的行业情报分析师。";
-
-        // 未配置 GEMINI_API_KEY → 返回结构化示例报告（说明需配置 key）。
-        if (!GeminiLLM.isConfigured()) {
-          res.writeHead(200, { "content-type": "application/json" });
-          res.end(
-            JSON.stringify({
-              industry,
-              grounded: false,
-              report: mockReport(industry),
-              note: "未配置 GEMINI_API_KEY，以上为示例报告；配置后将返回 Gemini 联网生成的真实情报。",
-            }),
-          );
-          return;
-        }
-
-        // 已配置 → 调用 Gemini（gemini-2.0-flash-exp + google_search grounding）。
         const userInput =
-          `请针对【${industry}】行业，基于联网检索到的最新公开信息，输出一份结构化情报报告。` +
+          `请针对【${industry}】行业，输出一份结构化情报报告。` +
           `必须包含以下六个小节，每节 2–4 句并给出具体信号：\n` +
           `1. 市场情绪\n2. 政策变化\n3. 科技突破\n4. 融资情况\n5. 投资者热情\n` +
           `6. 当前建议（明确给出“买入”或“等待”，说明理由与置信度）\n` +
-          `免责声明：仅供参考，不构成投资建议。`;
-        try {
-          const gemini = new GeminiLLM();
-          const result = await gemini.complete(sys, userInput, "gemini-2.0-flash");
+          `若提供了联网参考资料，请优先据其给出具体数据；免责声明：仅供参考，不构成投资建议。`;
+
+        const sendJson = (obj: unknown) => {
           res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-          res.end(
-            JSON.stringify({
+          res.end(JSON.stringify(obj));
+        };
+        const briefErr = (e: unknown) => String(e instanceof Error ? e.message : e).slice(0, 200);
+
+        // 优先级 1：Groq（先用 DuckDuckGo 抓行业摘要注入 system prompt，实现“联网”）
+        if (GroqLLM.isConfigured()) {
+          try {
+            const news = await duckDuckGoSearch(`${industry} 行业 最新 政策 融资 技术 趋势`);
+            const groqSys = news
+              ? `${sys}\n\n【联网检索到的参考资料（DuckDuckGo）】\n${news}`
+              : sys;
+            const result = await new GroqLLM().complete(groqSys, userInput, "");
+            sendJson({
               industry,
+              source: "groq",
+              grounded: Boolean(news),
+              searchUsed: Boolean(news),
+              model: result.model,
+              report: result.text,
+              tokens: { input: result.inputTokens, output: result.outputTokens },
+            });
+            return;
+          } catch (err) {
+            console.warn("[analyze] Groq 失败，尝试下一优先级:", briefErr(err));
+          }
+        }
+
+        // 优先级 2：Gemini（自带 Google Search grounding）
+        if (GeminiLLM.isConfigured()) {
+          try {
+            const result = await new GeminiLLM().complete(sys, userInput, "");
+            sendJson({
+              industry,
+              source: "gemini",
               grounded: true,
               model: result.model,
               report: result.text,
               tokens: { input: result.inputTokens, output: result.outputTokens },
-            }),
-          );
-        } catch (err) {
-          // 降级兜底：Gemini 调用失败（配额/网络/鉴权等）→ 回退演示报告，顶部标注。
-          const reason = String(err instanceof Error ? err.message : err).slice(0, 200);
-          console.warn("[analyze] Gemini 调用失败，降级演示报告:", reason);
-          const report = "（实时数据获取失败，以下为演示数据）\n" + mockReport(industry);
-          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-          res.end(
-            JSON.stringify({ industry, grounded: false, fellBack: true, report, error: reason }),
-          );
+            });
+            return;
+          } catch (err) {
+            console.warn("[analyze] Gemini 失败，降级演示报告:", briefErr(err));
+          }
         }
+
+        // 优先级 3：演示报告（无 key，或上面都失败）
+        const anyKey = GroqLLM.isConfigured() || GeminiLLM.isConfigured();
+        const report = (anyKey ? "（实时数据获取失败，以下为演示数据）\n" : "") + mockReport(industry);
+        sendJson({
+          industry,
+          source: "demo",
+          grounded: false,
+          fellBack: anyKey,
+          report,
+          ...(anyKey
+            ? {}
+            : {
+                note: "未配置 GROQ_API_KEY / GEMINI_API_KEY，以上为示例报告；配置任一后将返回联网生成的真实情报。",
+              }),
+        });
         return;
       }
       res.writeHead(404).end("not found");
