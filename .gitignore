@@ -1,0 +1,22 @@
+# deps & build
+node_modules/
+dist/
+
+# logs / data
+*.log
+data/*.json
+!data/.gitkeep
+
+# env & secrets (BYOK keys, API keys — 绝不入库)
+.env
+.env.*
+*.key
+
+# 设计文档（私有，不上传——宪法"有限公开"，配方保密）
+docs/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
