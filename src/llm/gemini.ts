@@ -26,7 +26,7 @@ export class GeminiLLM implements LLMClient {
 
   constructor(opts: GeminiOptions = {}) {
     this.apiKey = opts.apiKey ?? process.env["GEMINI_API_KEY"] ?? "";
-    this.model = opts.model ?? "gemini-2.0-flash-exp";
+    this.model = opts.model ?? process.env["GEMINI_MODEL"] ?? "gemini-2.0-flash";
     this.grounding = opts.grounding ?? true;
     this.timeoutMs = opts.timeoutMs ?? 60_000;
   }
