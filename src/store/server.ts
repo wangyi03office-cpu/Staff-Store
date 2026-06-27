@@ -108,17 +108,44 @@ function readBody(req: import("node:http").IncomingMessage): Promise<string> {
   });
 }
 
-/** 无 GEMINI_API_KEY 时的结构化示例报告（六维信号 + 建议）。 */
+/**
+ * 无 GEMINI_API_KEY 时的演示报告。
+ * 以「新能源汽车」为样例，给出具体数据/趋势/建议，让 demo 直观体现产品价值。
+ * 注：以下为演示用虚构数据，非实时、非投资建议（顶部免责 + 文末声明已标注）。
+ */
 function mockReport(industry: string): string {
+  const disclaimer = "（当前为演示报告。接入 Gemini API 后将基于实时网络数据生成。）";
+  const isNEV = industry.includes("新能源") || industry.includes("汽车");
+
+  if (!isNEV) {
+    return [
+      `${industry} · 行业情报报告`,
+      disclaimer,
+      ``,
+      `【市场情绪】${industry} 板块情绪中性，关注度与成交活跃度处于中位，暂缺明确主线催化。`,
+      `【政策变化】近期无重大政策落地，建议跟踪行业主管部门规划与补贴/监管信号。`,
+      `【科技突破】技术演进平稳，尚无颠覆性突破进入规模量产阶段。`,
+      `【融资情况】一级市场融资节奏平稳，头部企业现金流稳健、负债可控。`,
+      `【投资者热情】机构仓位中性，分析师评级以“持有”为主。`,
+      `【当前建议】结论：继续观察。等待基本面拐点与情绪共振信号。`,
+      ``,
+      `提示：演示样例以「新能源汽车」最完整，可在输入框填「新能源汽车」体验。`,
+      `免责声明：仅供参考，不构成投资建议。`,
+    ].join("\n");
+  }
+
   return [
-    `${industry} · 行业情报报告（示例）`,
+    `新能源汽车 · 行业情报周报`,
+    disclaimer,
     ``,
-    `【市场情绪】当前 ${industry} 板块情绪中性偏谨慎，散户关注度回落，机构观望为主。`,
-    `【政策变化】近期暂无重大政策落地，需关注后续补贴与监管动向。`,
-    `【科技突破】核心技术迭代平稳，暂无颠覆性突破进入规模量产。`,
-    `【融资情况】一级市场融资降温，头部企业现金流稳健、负债可控。`,
-    `【投资者热情】机构仓位中性，分析师评级以“持有”为主。`,
-    `【当前建议】结论：继续等待。等待“悲观情绪顶点 + 业绩底 + 政策拐点”三重共振再建仓。`,
+    `【市场情绪】行业情绪指数 62/100（中性偏暖，环比 +8）。终端零售同比 +35%，新能源渗透率突破 48%；社媒讨论热度回升，散户情绪由谨慎转向乐观。`,
+    `【政策变化】新能源车购置税减免延续至 2027 年底；工信部“双积分”考核趋严；多地放宽牌照并加码充电基建补贴。外部扰动：欧盟对华电动车反补贴关税（最高约 35%）压制出口预期。`,
+    `【科技突破】固态电池中试线落地，能量密度突破 400Wh/kg；800V 高压快充平台量产铺开，10 分钟补能约 400km；城区智能驾驶（城区 NOA）开城数翻倍，端到端大模型上车加速。`,
+    `【融资情况】一级市场回暖：某固态电池企业完成超 20 亿元 C 轮（头部产业基金领投）；某智驾芯片公司 D 轮 15 亿元；二线品牌加速出清，行业并购整合活跃。`,
+    `【投资者热情】北向资金近一月净流入龙头电池/整车标的约 80 亿元；公募板块仓位环比 +1.5pct 至中高位；龙头动态 PE 回落至约 18x，处近三年低分位，机构上调评级家数增多。`,
+    `【当前建议】结论：买入（分批建仓）。逻辑＝销量与渗透率持续超预期 ＋ 龙头估值回落至历史低位 ＋ 政策与技术共振；主要风险为欧盟关税与价格战。建议情绪修复初期分批布局龙头，持有 1 年以上，置信度中高（约 70%）。`,
+    ``,
+    `免责声明：仅供参考，不构成投资建议。`,
   ].join("\n");
 }
 
@@ -185,18 +212,29 @@ export function createServer(world: SeededWorld, llm: LLMClient): Server {
           `1. 市场情绪\n2. 政策变化\n3. 科技突破\n4. 融资情况\n5. 投资者热情\n` +
           `6. 当前建议（明确给出“买入”或“等待”，说明理由与置信度）\n` +
           `免责声明：仅供参考，不构成投资建议。`;
-        const gemini = new GeminiLLM();
-        const result = await gemini.complete(sys, userInput, "gemini-2.0-flash-exp");
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(
-          JSON.stringify({
-            industry,
-            grounded: true,
-            model: result.model,
-            report: result.text,
-            tokens: { input: result.inputTokens, output: result.outputTokens },
-          }),
-        );
+        try {
+          const gemini = new GeminiLLM();
+          const result = await gemini.complete(sys, userInput, "gemini-2.0-flash");
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(
+            JSON.stringify({
+              industry,
+              grounded: true,
+              model: result.model,
+              report: result.text,
+              tokens: { input: result.inputTokens, output: result.outputTokens },
+            }),
+          );
+        } catch (err) {
+          // 降级兜底：Gemini 调用失败（配额/网络/鉴权等）→ 回退演示报告，顶部标注。
+          const reason = String(err instanceof Error ? err.message : err).slice(0, 200);
+          console.warn("[analyze] Gemini 调用失败，降级演示报告:", reason);
+          const report = "（实时数据获取失败，以下为演示数据）\n" + mockReport(industry);
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+          res.end(
+            JSON.stringify({ industry, grounded: false, fellBack: true, report, error: reason }),
+          );
+        }
         return;
       }
       res.writeHead(404).end("not found");
